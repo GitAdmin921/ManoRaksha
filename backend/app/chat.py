@@ -47,8 +47,8 @@ def chat(request: ChatRequest):
         }
 
     except Exception as e:
-    print("AI ERROR:", repr(e))
-    raise HTTPException(
-        status_code=500,
-        detail=f"AI request failed: {str(e)}"
-    )
+        print("AI ERROR:", repr(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI request failed: {str(e)}"
+        )
