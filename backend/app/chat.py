@@ -1,10 +1,8 @@
-import os
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
 
-from .config import AI_API_KEY, AI_PROVIDER
+from .config import OPENAI_API_KEY, AI_PROVIDER
 
 
 router = APIRouter()
@@ -17,10 +15,10 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 def chat(request: ChatRequest):
 
-    if not AI_API_KEY:
+    if not OPENAI_API_KEY:
         raise HTTPException(
             status_code=500,
-            detail="AI_API_KEY is not configured"
+            detail="OPENAI_API_KEY is not configured"
         )
 
     if AI_PROVIDER.lower() != "openai":
@@ -29,9 +27,9 @@ def chat(request: ChatRequest):
             detail="AI_PROVIDER must be set to openai"
         )
 
-    client = OpenAI(api_key=AI_API_KEY)
-
     try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
         response = client.responses.create(
             model="gpt-5.6-luna",
             instructions=(
@@ -48,7 +46,7 @@ def chat(request: ChatRequest):
             "reply": response.output_text
         }
 
-    except Exception:
+    except Exception as e:
         raise HTTPException(
             status_code=500,
             detail="AI request failed"
