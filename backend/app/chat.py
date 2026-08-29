@@ -28,10 +28,12 @@ def chat(request: ChatRequest):
         )
 
     try:
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        client = OpenAI(
+            api_key=OPENAI_API_KEY
+        )
 
         response = client.responses.create(
-            model="gpt-5.6-luna",
+            model="gpt-5.4-mini",
             instructions=(
                 "You are MANORAKSHA, a supportive mental-health "
                 "conversation assistant. Be empathetic, calm, respectful "
@@ -40,6 +42,7 @@ def chat(request: ChatRequest):
                 "emergency help when appropriate."
             ),
             input=request.message,
+            store=True,
         )
 
         return {
@@ -48,7 +51,8 @@ def chat(request: ChatRequest):
 
     except Exception as e:
         print("AI ERROR:", repr(e))
+
         raise HTTPException(
             status_code=500,
-            detail=f"AI request failed: {str(e)}"
+            detail="AI request failed"
         )
