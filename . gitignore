@@ -1,1 +1,107 @@
+# ================================
+# MANORAKSHA - Git Ignore
+# ================================
 
+# ----------------
+# Environment / Secrets
+# ----------------
+.env
+.env.*
+!.env.example
+
+# ----------------
+# Python
+# ----------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+.venv/
+venv/
+env/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ----------------
+# Node.js
+# ----------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+dist/
+build/
+.vite/
+
+# ----------------
+# IDE / Editors
+# ----------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----------------
+# Operating System
+# ----------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----------------
+# Logs
+# ----------------
+*.log
+logs/
+
+# ----------------
+# Testing / Coverage
+# ----------------
+.coverage
+htmlcov/
+
+# ----------------
+# Local Databases
+# ----------------
+*.sqlite
+*.sqlite3
+*.db
+
+postgres-data/
+redis-data/
+
+# ----------------
+# Docker
+# ----------------
+docker-compose.override.yml
+
+# ----------------
+# Secrets / Certificates
+# ----------------
+*.pem
+*.key
+*.crt
+
+# ----------------
+# Temporary Files
+# ----------------
+tmp/
+temp/
+*.tmp
+
+# ----------------
+# Build / Cache
+# ----------------
+.cache/
+.parcel-cache/
+
+# ----------------
+# OS / Editor backups
+# ----------------
+*~
+*.bak
+*.backup
