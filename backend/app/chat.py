@@ -2,8 +2,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from google import genai
 
-from .config import GEMINI_API_KEY, AI_PROVIDER
-
+from .config import (
+    GEMINI_API_KEY,
+    AI_PROVIDER,
+    GEMINI_MODEL,
+)
 
 router = APIRouter()
 
@@ -54,7 +57,7 @@ User message:
 """
 
         response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
+            model=GEMINI_MODEL,
             contents=prompt,
         )
 
