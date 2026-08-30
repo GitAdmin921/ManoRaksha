@@ -4,6 +4,15 @@ import "./styles.css";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://manoraksha-1.onrender.com";
 
 const moods = [
@@ -235,7 +244,339 @@ function AlertScreen({ onNavigate }) { return <div className="stack"><section cl
 function Support({ onNavigate }) { return <div className="stack"><section className="support-intro"><div className="support-heart">♡</div><h2>You are not alone.</h2><p>We are here to help you find the next safe step.</p></section><SupportCard icon="person" title="Talk to Professional" text="Find a counsellor or mental-health professional." action="Find support" onClick={() => onNavigate("map")} /><SupportCard icon="map" title="Nearest Help Center" text="Explore nearby support locations." action="Open map" onClick={() => onNavigate("map")} /><SupportCard icon="sos" title="Emergency SOS" text="For immediate danger, contact emergency services." danger action="Call 112" onClick={() => window.location.href = "tel:112"} /><SupportCard icon="resource" title="Self Help Resources" text="Grounding, breathing and calming exercises." action="Explore" onClick={() => alert("Try: slow breathing for 60 seconds, drink some water, sit somewhere safe, and contact someone you trust.")} /><button className="outline-btn wide" onClick={() => onNavigate("profile")}><Icon name="lock"/> Privacy & ethical commitment</button></div>; }
 function SupportCard({ icon, title, text, action, onClick, danger }) { return <button className={`support-card ${danger ? "danger" : ""}`} onClick={onClick}><span className="support-icon"><Icon name={icon} size={24}/></span><span className="support-copy"><strong>{title}</strong><small>{text}</small></span><span className="support-action">{action} <Icon name="arrow" size={18}/></span></button>; }
 
-function SupportMap({ onNavigate }) { return <div className="stack"><section className="map-card card"><div className="map-art"><span className="map-road r1"/><span className="map-road r2"/><span className="pin p1">⌖</span><span className="pin p2">⌖</span><span className="pin p3">⌖</span><span className="you-dot">●</span></div><div className="map-location"><span className="support-icon"><Icon name="map"/></span><div><strong>Nearby support</strong><p>Use your device location to find local help.</p></div><button onClick={() => alert("Location permission can be connected here in the next iteration.")}>Locate me</button></div></section><section className="card center-card"><span className="support-icon large"><Icon name="person" size={30}/></span><h3>Nayi Disha Counselling Center</h3><p className="muted">Example support listing • 0.8 km away</p><button className="primary-btn" onClick={() => alert("Directions integration can be connected here.")}>Directions</button></section><button className="back-link" onClick={() => onNavigate("support")}><Icon name="back"/> Back to support</button></div>; }
+function SupportMap({ onNavigate }) {
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
+
+  const [location, setLocation] = useState(null);
+  const [places, setPlaces] = useState([]);
+  const [status, setStatus] = useState(
+    "Tap Locate me to find support near you."
+  );
+  const [locating, setLocating] = useState(false);
+
+  // -----------------------------------------
+  // Get nearby support locations
+  // -----------------------------------------
+  async function findNearbySupport(lat, lon) {
+    try {
+      setStatus("Finding nearby support locations…");
+
+      const query = `
+        [out:json][timeout:20];
+        (
+          nwr(around:5000,${lat},${lon})["amenity"~"hospital|clinic|doctors|social_facility"];
+          nwr(around:5000,${lat},${lon})["healthcare"];
+          nwr(around:5000,${lat},${lon})["name"~"counselling|counseling|mental|psychiatric|psychology|wellness",i];
+        );
+        out center tags;
+      `;
+
+      const response = await fetch(
+        "https://overpass-api.de/api/interpreter",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            data: query,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Support search failed");
+      }
+
+      const data = await response.json();
+
+      const results = data.elements
+        .map((item) => {
+          const latValue = item.lat ?? item.center?.lat;
+          const lonValue = item.lon ?? item.center?.lon;
+
+          if (!latValue || !lonValue) {
+            return null;
+          }
+
+          return {
+            id: item.id,
+            name:
+              item.tags?.name ||
+              item.tags?.official_name ||
+              "Nearby support centre",
+            lat: latValue,
+            lon: lonValue,
+            type:
+              item.tags?.healthcare ||
+              item.tags?.amenity ||
+              "Support service",
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 20);
+
+      setPlaces(results);
+
+      if (results.length === 0) {
+        setStatus("No nearby support locations found.");
+      } else {
+        setStatus(`${results.length} nearby support locations found.`);
+      }
+
+      return results;
+    } catch (error) {
+      console.error("Support search error:", error);
+      setStatus("Could not load nearby support locations.");
+      return [];
+    }
+  }
+
+  // -----------------------------------------
+  // Device location
+  // -----------------------------------------
+  function locateMe() {
+    if (!navigator.geolocation) {
+      setStatus("Location is not supported by this browser.");
+      return;
+    }
+
+    setLocating(true);
+    setStatus("Requesting your location…");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        setLocation({
+          lat,
+          lon,
+        });
+
+        await findNearbySupport(lat, lon);
+
+        setLocating(false);
+      },
+      (error) => {
+        console.error("Location error:", error);
+
+        setLocating(false);
+
+        if (error.code === error.PERMISSION_DENIED) {
+          setStatus(
+            "Location permission denied. Please allow location access."
+          );
+        } else if (error.code === error.TIMEOUT) {
+          setStatus("Location request timed out. Please try again.");
+        } else {
+          setStatus("Unable to get your current location.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 300000,
+      }
+    );
+  }
+
+  // -----------------------------------------
+  // Create map
+  // -----------------------------------------
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) {
+      return;
+    }
+
+    const map = L.map(mapRef.current).setView(
+      [20.5937, 78.9629],
+      5
+    );
+
+    L.tileLayer(
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }
+    ).addTo(map);
+
+    mapInstanceRef.current = map;
+
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  }, []);
+
+  // -----------------------------------------
+  // Update markers
+  // -----------------------------------------
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+
+    if (!map || !location) {
+      return;
+    }
+
+    // Remove previous markers
+    markersRef.current.forEach((marker) => {
+      map.removeLayer(marker);
+    });
+
+    markersRef.current = [];
+
+    // Move map to user
+    map.setView(
+      [location.lat, location.lon],
+      14
+    );
+
+    // User marker
+    const userIcon = L.divIcon({
+      className: "user-location-marker",
+      html: '<div class="user-location-dot"></div>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+
+    const userMarker = L.marker(
+      [location.lat, location.lon],
+      {
+        icon: userIcon,
+      }
+    )
+      .addTo(map)
+      .bindPopup("<strong>You are here</strong>");
+
+    markersRef.current.push(userMarker);
+
+    // Support markers
+    places.forEach((place) => {
+      const marker = L.marker([
+        place.lat,
+        place.lon,
+      ])
+        .addTo(map)
+        .bindPopup(`
+          <strong>${escapeHtml(place.name)}</strong>
+          <br />
+          <small>${escapeHtml(place.type)}</small>
+        `);
+
+      markersRef.current.push(marker);
+    });
+  }, [location, places]);
+
+  // -----------------------------------------
+  // Google Maps directions
+  // -----------------------------------------
+  function openDirections(place) {
+    const url =
+      `https://www.google.com/maps/dir/?api=1` +
+      `&destination=${place.lat},${place.lon}`;
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  return (
+    <div className="stack">
+
+      {/* REAL OPENSTREETMAP */}
+      <section className="card map-card">
+
+        <div
+          ref={mapRef}
+          className="real-map"
+          aria-label="Nearby support map"
+        />
+
+        <div className="map-location">
+
+          <span className="support-icon">
+            <Icon name="map" />
+          </span>
+
+          <div>
+            <strong>Localized Support</strong>
+            <p>{status}</p>
+          </div>
+
+          <button
+            onClick={locateMe}
+            disabled={locating}
+          >
+            {locating ? "Locating…" : "Locate me"}
+          </button>
+
+        </div>
+
+      </section>
+
+      {/* SUPPORT LIST */}
+      {places.length > 0 && (
+        <section className="card">
+
+          <div className="section-head">
+            <div>
+              <p className="muted">Nearby</p>
+              <h3>Support locations</h3>
+            </div>
+          </div>
+
+          <div className="support-list">
+
+            {places.slice(0, 8).map((place) => (
+              <div
+                className="local-support-item"
+                key={`${place.id}-${place.lat}-${place.lon}`}
+              >
+
+                <div className="local-support-info">
+
+                  <span className="support-icon">
+                    <Icon name="person" size={20} />
+                  </span>
+
+                  <div>
+                    <strong>{place.name}</strong>
+                    <small>
+                      {place.type || "Health & support service"}
+                    </small>
+                  </div>
+
+                </div>
+
+                <button
+                  className="small-direction-btn"
+                  onClick={() => openDirections(place)}
+                >
+                  Directions
+                </button>
+
+              </div>
+            ))}
+
+          </div>
+
+        </section>
+      )}
+
+      {/* BACK */}
+      <button
+        className="back-link"
+        onClick={() => onNavigate("support")}
+      >
+        <Icon name="back" /> Back to support
+      </button>
+
+    </div>
+  );
+}
 
 function Journal({ journal, setJournal, saved, onSave }) { return <div className="stack"><section className="card journal-card"><p className="muted">Daily reflection</p><h2>How was your day?</h2><textarea value={journal} onChange={(e) => setJournal(e.target.value)} placeholder="Write your thoughts…" rows={9}/><div className="journal-tools"><button>🙂 Add mood</button><button>⌘ Tag</button></div><button className="primary-btn wide" onClick={onSave} disabled={!journal.trim()}><Icon name="save"/> {saved ? "Entry saved" : "Save entry"}</button></section><p className="disclaimer">Journal content is for your personal reflection in this prototype.</p></div>; }
 
