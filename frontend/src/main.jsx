@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://manoraksha-1.onrender.com";
