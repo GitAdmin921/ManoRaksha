@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from openai import OpenAI
+from google import genai
 
-from .config import OPENAI_API_KEY, AI_PROVIDER
+from .config import GEMINI_API_KEY, AI_PROVIDER
 
 
 router = APIRouter()
@@ -15,42 +15,55 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 def chat(request: ChatRequest):
 
-    if not OPENAI_API_KEY:
+    if not GEMINI_API_KEY:
         raise HTTPException(
             status_code=500,
-            detail="OPENAI_API_KEY is not configured"
+            detail="GEMINI_API_KEY is not configured"
         )
 
-    if AI_PROVIDER.lower() != "openai":
+    if AI_PROVIDER.lower() != "gemini":
         raise HTTPException(
             status_code=500,
-            detail="AI_PROVIDER must be set to openai"
+            detail="AI_PROVIDER must be set to gemini"
         )
 
     try:
-        client = OpenAI(
-            api_key=OPENAI_API_KEY
+        client = genai.Client(
+            api_key=GEMINI_API_KEY
         )
 
-        response = client.responses.create(
-            model="gpt-5.4-mini",
-            instructions=(
-                "You are MANORAKSHA, a supportive mental-health "
-                "conversation assistant. Be empathetic, calm, respectful "
-                "and safety-focused. Do not claim to be a doctor or "
-                "mental-health professional. Encourage professional or "
-                "emergency help when appropriate."
-            ),
-            input=request.message,
-            store=True,
+        prompt = f"""
+You are MANORAKSHA, a supportive mental-health
+conversation assistant.
+
+Be:
+- empathetic
+- calm
+- respectful
+- non-judgmental
+- safety-focused
+
+Do not claim to be a doctor, psychologist,
+psychiatrist, or mental-health professional.
+
+Encourage the user to seek professional or
+emergency help when appropriate.
+
+User message:
+{request.message}
+"""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
         )
 
         return {
-            "reply": response.output_text
+            "reply": response.text
         }
 
     except Exception as e:
-        print("AI ERROR:", repr(e))
+        print("GEMINI ERROR:", repr(e))
 
         raise HTTPException(
             status_code=500,
